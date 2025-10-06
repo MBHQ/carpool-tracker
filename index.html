@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carpool Payment Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 30px; background: #f9f9f9; }
+    table { border-collapse: collapse; width: 100%; background: #fff; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #f0f0f0; }
+    h1 { text-align: center; }
+    input[type="text"] { width: 95%; padding: 4px; }
+    .total { font-weight: bold; font-size: 1.2em; text-align: right; margin-top: 10px; }
+    select, button { padding: 5px; margin-right: 5px; }
+  </style>
+</head>
+<body>
+
+  <h1>Carpool Payment Calculator</h1>
+
+  <div>
+    <label for="month">Month:</label>
+    <select id="month"></select>
+
+    <label for="year">Year:</label>
+    <select id="year"></select>
+
+    <button onclick="loadDays()">Load Days</button>
+  </div>
+
+  <table id="daysTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Morning</th>
+        <th>Evening</th>
+        <th>Notes / Reason</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="total" id="totalDisplay">Total: ₹0</div>
+
+  <script>
+    const MONTHLY_AMOUNT = 20000;
+    const tableBody = document.querySelector("#daysTable tbody");
+    const totalDisplay = document.getElementById("totalDisplay");
+
+    const monthSelect = document.getElementById("month");
+    const yearSelect = document.getElementById("year");
+
+    // Populate months and years
+    for (let m = 1; m <= 12; m++) {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.text = m;
+      if (m === new Date().getMonth() + 1) opt.selected = true;
+      monthSelect.appendChild(opt);
+    }
+
+    const thisYear = new Date().getFullYear();
+    for (let y = thisYear - 1; y <= thisYear + 1; y++) {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.text = y;
+      if (y === thisYear) opt.selected = true;
+      yearSelect.appendChild(opt);
+    }
+
+    function getWorkingDays(year, month) {
+      const days = [];
+      const date = new Date(year, month - 1, 1);
+      while (date.getMonth() === month - 1) {
+        if (date.getDay() >= 1 && date.getDay() <= 5) { // Mon-Fri
+          days.push(new Date(date));
+        }
+        date.setDate(date.getDate() + 1);
+      }
+      return days;
+    }
+
+    function loadDays() {
+      const year = parseInt(yearSelect.value);
+      const month = parseInt(monthSelect.value);
+      const days = getWorkingDays(year, month);
+      tableBody.innerHTML = "";
+
+      const saveKey = `${year}-${month}-carpoolData`;
+      const savedData = JSON.parse(localStorage.getItem(saveKey)) || {};
+
+      days.forEach((d, i) => {
+        const dayStr = d.toISOString().split("T")[0];
+        const saved = savedData[dayStr] || { morning: false, evening: false, note: "" };
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${d.toDateString().slice(0, 10)}</td>
+          <td><input type="checkbox" ${saved.morning ? "checked" : ""}></td>
+          <td><input type="checkbox" ${saved.evening ? "checked" : ""}></td>
+          <td><input type="text" value="${saved.note || ""}"></td>
+        `;
+        tableBody.appendChild(tr);
+
+        // Add event listeners for saving and updating total
+        const [morningCb, eveningCb, noteInput] = tr.querySelectorAll("input");
+
+        const save = () => {
+          const currentData = JSON.parse(localStorage.getItem(saveKey)) || {};
+          currentData[dayStr] = {
+            morning: morningCb.checked,
+            evening: eveningCb.checked,
+            note: noteInput.value
+          };
+          localStorage.setItem(saveKey, JSON.stringify(currentData));
+          updateTotal();
+        };
+
+        morningCb.addEventListener("change", save);
+        eveningCb.addEventListener("change", save);
+        noteInput.addEventListener("input", save);
+      });
+
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const year = parseInt(yearSelect.value);
+      const month = parseInt(monthSelect.value);
+      const days = getWorkingDays(year, month);
+      const saveKey = `${year}-${month}-carpoolData`;
+      const savedData = JSON.parse(localStorage.getItem(saveKey)) || {};
+
+      const perHalfTrip = MONTHLY_AMOUNT / (days.length * 2);
+      let total = 0;
+
+      Object.values(savedData).forEach(d => {
+        if (d.morning) total += perHalfTrip;
+        if (d.evening) total += perHalfTrip;
+      });
+
+      totalDisplay.textContent = `Total: ₹${total.toFixed(0)}`;
+    }
+
+    loadDays();
+  </script>
+
+</body>
+</html>
