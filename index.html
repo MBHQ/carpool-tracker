@@ -5,14 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Carpool Payment Calculator</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 30px; background: #f9f9f9; }
-    table { border-collapse: collapse; width: 100%; background: #fff; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #f0f0f0; }
-    h1 { text-align: center; }
-    input[type="text"] { width: 95%; padding: 4px; }
-    .total { font-weight: bold; font-size: 1.2em; text-align: right; margin-top: 10px; }
-    select, button { padding: 5px; margin-right: 5px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+      background: #f9f9f9;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    h1 {
+      text-align: center;
+    }
+    input[type="text"] {
+      width: 95%;
+      padding: 4px;
+    }
+    .total {
+      font-weight: bold;
+      font-size: 1.2em;
+      text-align: right;
+      margin-top: 10px;
+    }
+    select, button {
+      padding: 5px;
+      margin-right: 5px;
+    }
+    .disabled {
+      background-color: #e0e0e0;
+    }
   </style>
 </head>
 <body>
@@ -32,6 +62,7 @@
   <table id="daysTable">
     <thead>
       <tr>
+        <th>#</th>
         <th>Date</th>
         <th>Morning</th>
         <th>Evening</th>
@@ -69,11 +100,13 @@
       yearSelect.appendChild(opt);
     }
 
+    // ✅ Only include weekdays (Mon–Fri)
     function getWorkingDays(year, month) {
       const days = [];
       const date = new Date(year, month - 1, 1);
       while (date.getMonth() === month - 1) {
-        if (date.getDay() >= 1 && date.getDay() <= 5) { // Mon-Fri
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
           days.push(new Date(date));
         }
         date.setDate(date.getDate() + 1);
@@ -96,6 +129,7 @@
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
+          <td>${i + 1}</td>
           <td>${d.toDateString().slice(0, 10)}</td>
           <td><input type="checkbox" ${saved.morning ? "checked" : ""}></td>
           <td><input type="checkbox" ${saved.evening ? "checked" : ""}></td>
@@ -103,11 +137,29 @@
         `;
         tableBody.appendChild(tr);
 
-        // Add event listeners for saving and updating total
         const [morningCb, eveningCb, noteInput] = tr.querySelectorAll("input");
 
         const save = () => {
           const currentData = JSON.parse(localStorage.getItem(saveKey)) || {};
+          const noteVal = noteInput.value.trim().toLowerCase();
+
+          // ✅ Handle 'transferred' detection (case-insensitive, partial allowed)
+          const isTransferred = noteVal.includes("transferred");
+
+          if (isTransferred) {
+            morningCb.disabled = true;
+            eveningCb.disabled = true;
+            morningCb.checked = false;
+            eveningCb.checked = false;
+            morningCb.classList.add("disabled");
+            eveningCb.classList.add("disabled");
+          } else {
+            morningCb.disabled = false;
+            eveningCb.disabled = false;
+            morningCb.classList.remove("disabled");
+            eveningCb.classList.remove("disabled");
+          }
+
           currentData[dayStr] = {
             morning: morningCb.checked,
             evening: eveningCb.checked,
@@ -116,6 +168,14 @@
           localStorage.setItem(saveKey, JSON.stringify(currentData));
           updateTotal();
         };
+
+        // Apply disabled state on load
+        if (saved.note.trim().toLowerCase().includes("transferred")) {
+          morningCb.disabled = true;
+          eveningCb.disabled = true;
+          morningCb.classList.add("disabled");
+          eveningCb.classList.add("disabled");
+        }
 
         morningCb.addEventListener("change", save);
         eveningCb.addEventListener("change", save);
@@ -136,11 +196,12 @@
       let total = 0;
 
       Object.values(savedData).forEach(d => {
+        if (d.note.trim().toLowerCase().includes("transferred")) return; // Skip transferred days
         if (d.morning) total += perHalfTrip;
         if (d.evening) total += perHalfTrip;
       });
 
-      totalDisplay.textContent = `Total: Rs${total.toFixed(0)}`;
+      totalDisplay.textContent = `Total: ₹${total.toFixed(0)} (Working Days: ${days.length})`;
     }
 
     loadDays();
