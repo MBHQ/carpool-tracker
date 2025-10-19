@@ -27,8 +27,8 @@
       text-align: center;
     }
     input[type="text"] {
-      width: 95%;
       padding: 4px;
+      width: 70%;
     }
     .total {
       font-weight: bold;
@@ -42,6 +42,12 @@
     }
     .disabled {
       background-color: #e0e0e0;
+    }
+    .check-reason {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
   </style>
 </head>
@@ -64,9 +70,8 @@
       <tr>
         <th>#</th>
         <th>Date</th>
-        <th>Morning</th>
-        <th>Evening</th>
-        <th>Notes / Reason</th>
+        <th>Morning (✔ / Reason)</th>
+        <th>Evening (✔ / Reason)</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -125,61 +130,88 @@
 
       days.forEach((d, i) => {
         const dayStr = d.toISOString().split("T")[0];
-        const saved = savedData[dayStr] || { morning: false, evening: false, note: "" };
+        const saved = savedData[dayStr] || { 
+          morning: false, 
+          evening: false, 
+          morningReason: "", 
+          eveningReason: "" 
+        };
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td>${i + 1}</td>
           <td>${d.toDateString().slice(0, 10)}</td>
-          <td><input type="checkbox" ${saved.morning ? "checked" : ""}></td>
-          <td><input type="checkbox" ${saved.evening ? "checked" : ""}></td>
-          <td><input type="text" value="${saved.note || ""}"></td>
+          <td>
+            <div class="check-reason">
+              <input type="checkbox" class="morning-cb" ${saved.morning ? "checked" : ""}>
+              <input type="text" class="morning-reason" placeholder="Reason" value="${saved.morningReason || ""}">
+            </div>
+          </td>
+          <td>
+            <div class="check-reason">
+              <input type="checkbox" class="evening-cb" ${saved.evening ? "checked" : ""}>
+              <input type="text" class="evening-reason" placeholder="Reason" value="${saved.eveningReason || ""}">
+            </div>
+          </td>
         `;
         tableBody.appendChild(tr);
 
-        const [morningCb, eveningCb, noteInput] = tr.querySelectorAll("input");
+        const morningCb = tr.querySelector(".morning-cb");
+        const eveningCb = tr.querySelector(".evening-cb");
+        const morningReason = tr.querySelector(".morning-reason");
+        const eveningReason = tr.querySelector(".evening-reason");
 
+        // ✅ Save function with independent logic
         const save = () => {
           const currentData = JSON.parse(localStorage.getItem(saveKey)) || {};
-          const noteVal = noteInput.value.trim().toLowerCase();
 
-          // ✅ Handle 'transferred' detection (case-insensitive, partial allowed)
-          const isTransferred = noteVal.includes("transferred");
+          const morningTransferred = morningReason.value.toLowerCase().includes("transferred");
+          const eveningTransferred = eveningReason.value.toLowerCase().includes("transferred");
 
-          if (isTransferred) {
+          // Morning independent handling
+          if (morningTransferred) {
             morningCb.disabled = true;
-            eveningCb.disabled = true;
             morningCb.checked = false;
-            eveningCb.checked = false;
             morningCb.classList.add("disabled");
-            eveningCb.classList.add("disabled");
           } else {
             morningCb.disabled = false;
-            eveningCb.disabled = false;
             morningCb.classList.remove("disabled");
+          }
+
+          // Evening independent handling
+          if (eveningTransferred) {
+            eveningCb.disabled = true;
+            eveningCb.checked = false;
+            eveningCb.classList.add("disabled");
+          } else {
+            eveningCb.disabled = false;
             eveningCb.classList.remove("disabled");
           }
 
           currentData[dayStr] = {
             morning: morningCb.checked,
             evening: eveningCb.checked,
-            note: noteInput.value
+            morningReason: morningReason.value,
+            eveningReason: eveningReason.value
           };
           localStorage.setItem(saveKey, JSON.stringify(currentData));
           updateTotal();
         };
 
-        // Apply disabled state on load
-        if (saved.note.trim().toLowerCase().includes("transferred")) {
+        // ✅ Apply disabled state on load independently
+        if (saved.morningReason.toLowerCase().includes("transferred")) {
           morningCb.disabled = true;
-          eveningCb.disabled = true;
           morningCb.classList.add("disabled");
+        }
+        if (saved.eveningReason.toLowerCase().includes("transferred")) {
+          eveningCb.disabled = true;
           eveningCb.classList.add("disabled");
         }
 
         morningCb.addEventListener("change", save);
         eveningCb.addEventListener("change", save);
-        noteInput.addEventListener("input", save);
+        morningReason.addEventListener("input", save);
+        eveningReason.addEventListener("input", save);
       });
 
       updateTotal();
@@ -196,12 +228,13 @@
       let total = 0;
 
       Object.values(savedData).forEach(d => {
-        if (d.note.trim().toLowerCase().includes("transferred")) return; // Skip transferred days
-        if (d.morning) total += perHalfTrip;
-        if (d.evening) total += perHalfTrip;
+        const morningTransferred = d.morningReason?.toLowerCase().includes("transferred");
+        const eveningTransferred = d.eveningReason?.toLowerCase().includes("transferred");
+        if (!morningTransferred && d.morning) total += perHalfTrip;
+        if (!eveningTransferred && d.evening) total += perHalfTrip;
       });
 
-      totalDisplay.textContent = `Total: ₹${total.toFixed(0)} (Working Days: ${days.length})`;
+      totalDisplay.textContent = `Total: Rs${total.toFixed(0)} (Working Days: ${days.length})`;
     }
 
     loadDays();
